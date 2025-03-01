@@ -40,55 +40,62 @@ if not open_page(driver, url):
     exit()
 
 # 6) Cloudflare CAPTCHA’yı manuel geçmen için bekle
-print("\n🛑 Lütfen Cloudflare CAPTCHA varsa geçin. 30 saniye bekleniyor...")
-time.sleep(30)
+print("\n🛑 Lütfen Cloudflare CAPTCHA varsa geçin. Sayfanın tam yüklenmesini bekliyoruz...")
+time.sleep(10)  # Sayfa yüklenme süresi azaltıldı
 
-# 7) WebDriverWait ayarla (Maksimum 60 saniye bekleme süresi)
-wait = WebDriverWait(driver, 60)
+# 7) WebDriverWait ayarla (Maksimum 30 saniye bekleme süresi)
+wait = WebDriverWait(driver, 30)
 
 # 📌 Tüm maçların verilerini saklayacağımız liste
 matches_data = []
 
 try:
-    # 🌟 Tüm ligleri (row-renderer--xfjWW) al
-    leagues = wait.until(EC.presence_of_all_elements_located(
-        (By.XPATH, "//div[contains(@class, 'row-renderer--xfjWW') and @role='gridcell']")
+    # 🌟 Tüm maçları (event-row--KpnRq) al
+    matches = wait.until(EC.presence_of_all_elements_located(
+        (By.XPATH, "//div[contains(@class, 'event-row--KpnRq')]")
     ))
 
-    print(f"\n📌 Toplam {len(leagues)} lig bulundu.\n")
+    print(f"\n📌 Toplam {len(matches)} maç bulundu.\n")
 
-    for league in leagues:
-        all_odds = []  # **Bu lig içindeki tüm oranları geçici olarak saklayacağız.**
+    for match in matches:
+        match_data = {}  # **Tek maç için veri saklama**
+        
+        # 🌟 Takım isimlerini al (`teams--voqkz`)
+        try:
+            team_elements = match.find_elements(By.XPATH, ".//div[contains(@class, 'teams--voqkz')]")
+            if team_elements:
+                teams = " - ".join([team.text.strip() for team in team_elements])
+            else:
+                teams = "Bilinmeyen Takımlar"
+        except:
+            teams = "Bilinmeyen Takımlar"
+
+        match_data["Takımlar"] = teams
 
         # 🌟 Oranları al (`cell--KxlIy`)
-        odds_elements = league.find_elements(By.XPATH, ".//div[contains(@class, 'cell--KxlIy')]")
+        all_odds = []
+        odds_elements = match.find_elements(By.XPATH, ".//div[contains(@class, 'cell--KxlIy')]")
         for odd in odds_elements:
-            # Eğer oran kitli ise "Boş" yazacağız.
             if "locked--CPs7M" in odd.get_attribute("class"):
                 all_odds.append("Boş")
             else:
                 all_odds.append(odd.text.strip())
 
-        # **Maçları oranlara göre ayıracağız.**
-        num_matches = len(all_odds) // 11  # Her maçın tam 11 oranı olmalı
-        match_list = [all_odds[i:i + 11] for i in range(0, len(all_odds), 11)]
+        # **Eğer oran sayısı 11 değilse, eksik olanları boş yap**
+        while len(all_odds) < 11:
+            all_odds.append("Boş")
 
-        for idx, match_odds in enumerate(match_list):
-            if len(match_odds) == 11:
-                match_data = {}  # **Tek maç için veri saklama**
+        match_data["Oranlar"] = all_odds
 
-                # **Oranları sakla**
-                match_data["Oranlar"] = match_odds
+        # **Son 3 oranı `toplam`, `üst`, `alt` olarak eşle**
+        match_data["Son Üçlü"] = {
+            "toplam": all_odds[-3],
+            "ust": all_odds[-2],
+            "alt": all_odds[-1]
+        }
 
-                # **Son 3 oranı `toplam`, `üst`, `alt` olarak eşle**
-                match_data["Son Üçlü"] = {
-                    "toplam": match_odds[-3],
-                    "ust": match_odds[-2],
-                    "alt": match_odds[-1]
-                }
-
-                # **Maçı listeye ekle**
-                matches_data.append(match_data)
+        # **Maçı listeye ekle**
+        matches_data.append(match_data)
 
 except Exception as e:
     print("❌ Hata oluştu:", str(e))
@@ -101,7 +108,7 @@ driver.quit()
 print("\n📌 Tüm Maç Verileri Çekildi!\n")
 
 for index, match in enumerate(matches_data):
-    print(f"📌 Maç {index + 1}:")
+    print(f"📌 {match['Takımlar']}:")
     print("  ⚽ Oranlar:", ", ".join(match["Oranlar"]))
     print(f"  🏆 Toplam: {match['Son Üçlü']['toplam']}, Üst: {match['Son Üçlü']['ust']}, Alt: {match['Son Üçlü']['alt']}")
-    print("-" * 50)  # Ayrım çizgisi
+    print("-" * 50)

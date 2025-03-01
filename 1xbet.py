@@ -1,41 +1,41 @@
 import requests
-import json
 
-# API URL'si
-url = "https://1xlite-819117.top/service-api/LineFeed/GetExpressDayExtendedZip?partner=7&lng=tr&page=0"
-
-# HTTP başlıkları
-headers = {
-    "Content-Type": "application/json",
-    "Accept": "application/json, text/plain, */*",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3 Safari/605.1.15",
-    "Referer": "https://1xlite-819117.top/tr/live/football",
-    "x-requested-with": "XMLHttpRequest",
-    "x-svc-source": "__BETTING_APP__"
+# API Endpoint ve Parametreler
+url = "https://1xlite-819117.top/service-api/LiveFeed/Get1x2_VZip"
+params = {
+    "count": 10,
+    "lng": "tr",
+    "mode": 4,
+    "country": 190,
+    "top": "true",
+    "partner": 7,
+    "virtualSports": "true",
+    "noFilterBlockEvent": "true"
 }
 
-# Çerezler (Kimlik doğrulama için)
-cookies = {
-    "SESSION": "bd00f4a2ca5193abe3442792bf1d4e7c",
-    "lng": "tr"
-}
+# API İsteği Gönder
+response = requests.get(url, params=params)
+data = response.json()
 
-# API isteği gönderme
-response = requests.get(url, headers=headers, cookies=cookies)
+# Maçları işleyelim
+for event in data.get('Value', []):
+    takim1 = event.get("O1", "Bilinmeyen Takım")
+    takim2 = event.get("O2", "Bilinmeyen Takım")
+    lig = event.get("L", "Bilinmeyen Lig")
 
-# Yanıtı kontrol et
-if response.status_code == 200:
-    print("✅ API Başarıyla Çekildi!\n")
-    
-    # Yanıtı JSON formatına çevir
-    try:
-        data = response.json()
-        
-        # JSON verisini ekrana yazdır
-        print("📌 API Yanıtı:")
-        print(json.dumps(data, indent=4, ensure_ascii=False))  # JSON verisini düzgün şekilde yazdır
-        
-    except json.JSONDecodeError:
-        print("❌ JSON çözümlenirken hata oluştu.")
-else:
-    print(f"❌ API Hatası: {response.status_code}")
+    toplam, ust, alt = None, None, None
+
+    # Bahis oranlarını kontrol et
+    for bet in event.get('E', []):
+        if bet["T"] == 9:
+            toplam = bet["C"]
+        elif bet["T"] == 10:
+            ust = bet["C"]
+        elif bet["T"] == 11:
+            alt = bet["C"]
+
+    # Çıktıyı yazdır
+    print(f"\n🏆 {lig}")
+    print(f"⚽ {takim1} vs {takim2}")
+    print(f"📌 Toplam: {toplam} | Üst: {ust} | Alt: {alt}")
+    print("-" * 50)

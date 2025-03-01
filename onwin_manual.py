@@ -40,8 +40,8 @@ if not open_page(driver, url):
     exit()
 
 # 6) Cloudflare CAPTCHA’yı manuel geçmen için bekle
-print("\n🛑 Cloudflare CAPTCHA geçin. 10 saniye bekleniyor...")
-time.sleep(10)
+print("\n🛑 Lütfen Cloudflare CAPTCHA varsa geçin. Sayfanın tam yüklenmesini bekliyoruz...")
+time.sleep(10)  # Sayfa yüklenme süresi azaltıldı
 
 # 7) WebDriverWait ayarla (Maksimum 30 saniye bekleme süresi)
 wait = WebDriverWait(driver, 30)
@@ -64,16 +64,13 @@ try:
         try:
             team_elements = match.find_elements(By.XPATH, ".//div[contains(@class, 'teams--voqkz')]")
             if team_elements:
-                teams = team_elements[0].text.strip().split("\n")  # TAKIM ADLARINI BÖLÜYORUZ
-                takim1 = teams[0] if len(teams) > 0 else "Bilinmeyen"
-                takim2 = teams[1] if len(teams) > 1 else "Bilinmeyen"
+                teams = " - ".join([team.text.strip() for team in team_elements])
             else:
-                takim1, takim2 = "Bilinmeyen", "Bilinmeyen"
+                teams = "Bilinmeyen Takımlar"
         except:
-            takim1, takim2 = "Bilinmeyen", "Bilinmeyen"
+            teams = "Bilinmeyen Takımlar"
 
-        match_data["takim1"] = takim1
-        match_data["takim2"] = takim2
+        match_data["Takımlar"] = teams
 
         # 🌟 Oranları al (`cell--KxlIy`)
         all_odds = []
@@ -91,9 +88,11 @@ try:
         match_data["Oranlar"] = all_odds
 
         # **Son 3 oranı `toplam`, `üst`, `alt` olarak eşle**
-        match_data["toplam"] = all_odds[-3]
-        match_data["ust"] = all_odds[-2]
-        match_data["alt"] = all_odds[-1]
+        match_data["Son Üçlü"] = {
+            "toplam": all_odds[-3],
+            "ust": all_odds[-2],
+            "alt": all_odds[-1]
+        }
 
         # **Maçı listeye ekle**
         matches_data.append(match_data)
@@ -106,11 +105,10 @@ time.sleep(5)
 driver.quit()
 
 # 📌 **Tüm maçları ekrana yazdıralım**
-print("\n✅ ONWIN Verileri Çekildi!\n")
+print("\n📌 Tüm Maç Verileri Çekildi!\n")
 
 for index, match in enumerate(matches_data):
-    print(match)
-
-# 📌 **Onwin Verilerini `main.py`ye Gönderme**
-def get_onwin_data():
-    return matches_data
+    print(f"📌 {match['Takımlar']}:")
+    print("  ⚽ Oranlar:", ", ".join(match["Oranlar"]))
+    print(f"  🏆 Toplam: {match['Son Üçlü']['toplam']}, Üst: {match['Son Üçlü']['ust']}, Alt: {match['Son Üçlü']['alt']}")
+    print("-" * 50)

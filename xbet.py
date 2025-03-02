@@ -3,7 +3,7 @@ import requests
 def get_1xbet_data():
     url = "https://1xlite-819117.top/service-api/LiveFeed/Get1x2_VZip"
     params = {
-        "count": 10,
+        "count": 1000,
         "lng": "tr",
         "mode": 4,
         "country": 190,
@@ -27,19 +27,22 @@ def get_1xbet_data():
             "alt": None
         }
 
+        total_value = None  # Toplam değeri belirlemek için
+        
         for bet in event.get('E', []):
-            if bet["T"] == 9:
-                match_data["toplam"] = bet["C"]
-            elif bet["T"] == 10:
+            if bet["T"] == 9:  # Üst oran
                 match_data["ust"] = bet["C"]
-            elif bet["T"] == 11:
+                total_value = bet.get("P", total_value)  # P değeri toplam olabilir
+            elif bet["T"] == 10:  # Alt oran
                 match_data["alt"] = bet["C"]
+                if bet.get("P", None) == total_value:  # Aynı P varsa, bu toplamdır
+                    match_data["toplam"] = total_value
+
+        # Eğer toplam belirlenemediyse, en sık tekrar eden P değeri al
+        if match_data["toplam"] is None and total_value is not None:
+            match_data["toplam"] = total_value
 
         matches.append(match_data)
-
-    print("\n✅ 1XBET Verileri Çekildi!\n")
-    for m in matches:
-        print(m)
 
     return matches
 

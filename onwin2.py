@@ -31,22 +31,72 @@ def open_page(driver, url, max_retries=3):
             time.sleep(5)
     return False
 
+# **Futbol maçlarının linklerini çekme fonksiyonu**
+def get_match_links(driver):
+    url = "https://onwin1764.com/sportsbook/live"
+
+    if not open_page(driver, url):
+        print("🚨 Siteye erişilemedi, program duruyor!")
+        return []
+
+    wait = WebDriverWait(driver, 30)
+    match_links = []
+
+    try:
+        # **Sidebar'ı bul**
+        sidebar = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "side--PJTtW")))
+        print("✅ Sidebar bulundu.")
+
+        # **Futbol kategorisini bul ve tıkla**
+        futbol_kategorisi = sidebar.find_element(By.XPATH, "//*[@id='sportsbook-center-scroll']/div/div/div[1]/div/div[2]/div[2]")
+        futbol_kategorisi.click()
+        print("✅ Futbol kategorisi bulundu ve açıldı.")
+        time.sleep(5)  
+
+        # **Liglerin yüklenmesini bekle**
+        ligler = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//*[@id='sportsbook-center-scroll']/div/div/div[1]/div/div[2]/div[2]/div[contains(@class, 'menu-category--DcdaK')]")))
+        print(f"✅ {len(ligler)} lig bulundu.")
+
+        # **Tüm ligleri aç (eğer kapalıysa)**
+        for lig in ligler:
+            try:
+                lig.click()
+                time.sleep(1)  
+            except:
+                continue
+
+        # **Her lig içindeki maçları bul**
+        for lig in ligler:
+            maclar = lig.find_elements(By.XPATH, ".//a[contains(@class, 'sb__reset_link')]")
+            for mac in maclar:
+                link = mac.get_attribute("href")
+                if link:
+                    match_links.append(link)
+
+        print(f"\n📌 **Toplam {len(match_links)} maç linki bulundu.**")
+        for link in match_links:
+            print(f"🌍 Maç Linki: {link}")
+
+    except Exception as e:
+        print(f"❌ Hata oluştu: {e}")
+
+    return match_links  
+
 # **Oranları Çekme Fonksiyonu**
 def get_match_odds(driver, url):
     if not open_page(driver, url):
         print("🚨 Siteye erişilemedi, program duruyor!")
-        driver.quit()
         return []
 
     wait = WebDriverWait(driver, 10)
 
-    # **Doğru Market Bölgesini XPath ile Seçiyoruz**
+    # **Market bölgesini doğru almak için XPATH**
     try:
         market_group = wait.until(EC.presence_of_element_located(
             (By.XPATH, "//*[@id='sportsbook-center-scroll']/div/div/div[2]/div/div[5]/div[2]/div[2]/div[6]")
         ))
         print("\n✅ Doğru Market bölgesi bulundu.")
-        time.sleep(2)  # Ekstra bekleme süresi (sayfanın tam yüklenmesi için)
+        time.sleep(2)  
     except:
         print("\n⚠️ Doğru Market bölgesi bulunamadı!")
         return []
@@ -60,32 +110,26 @@ def get_match_odds(driver, url):
             outcome_wrappers = outcome.find_elements(By.CLASS_NAME, "outcome-wrapper--lXXkI")
 
             if len(outcome_wrappers) < 2:
-                continue  # Eğer eksik veri varsa atla
+                continue  
 
-            # **İlk eleman Üst, ikinci eleman Alt oranlarını içerir**
             top_odds_element = outcome_wrappers[0]
             bottom_odds_element = outcome_wrappers[1]
 
-            # **Toplam Oran'ı Al (`parameter--JXoWS` içindeki değeri)**
             try:
                 total_value = outcome.find_element(By.CLASS_NAME, "parameter--JXoWS").text.strip()
             except:
                 total_value = "Bilinmiyor"
 
-            # **Oranları Çek ve `\n`'den Sonra Gelen Değerleri Kullan**
             try:
-                top_value = top_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip()
-                top_value = top_value.split("\n")[-1]  # Sadece `\n` sonrası kısmı al
+                top_value = top_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]  
             except:
                 top_value = "Bilinmiyor"
 
             try:
-                bottom_value = bottom_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip()
-                bottom_value = bottom_value.split("\n")[-1]  # Sadece `\n` sonrası kısmı al
+                bottom_value = bottom_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]  
             except:
                 bottom_value = "Bilinmiyor"
 
-            # **Sonuçları Kaydet**
             match_odds.append({
                 "Toplam Oran": total_value,
                 "Üst": top_value,
@@ -101,12 +145,22 @@ def get_match_odds(driver, url):
 # **Ana Çalıştırma Kodu**
 if __name__ == "__main__":
     driver = start_driver()
-    url = "https://onwin1764.com/sportsbook/live/event/south_melbourne-st_albans%20saints/0193e4ca-da24-7bcc-868f-be4d45614c2b"
     
-    odds_data = get_match_odds(driver, url)
-    driver.quit()
+    # **Ana sayfadan maç linklerini çek**
+    match_links = get_match_links(driver)
 
-    # **Sonuçları Göster**
-    print("\n✅ Çekilen Oranlar:")
-    for data in odds_data:
-        print(data)
+    if not match_links:
+        print("\n❌ Hiç maç bulunamadı, program sonlandırılıyor!")
+        driver.quit()
+        exit()
+
+    # **Her maça gidip oranları çek**
+    for index, match_url in enumerate(match_links, start=1):
+        print(f"\n🎯 [{index}/{len(match_links)}] Maç için oranlar çekiliyor: {match_url}")
+        odds_data = get_match_odds(driver, match_url)
+
+        print("\n✅ Çekilen Oranlar:")
+        for data in odds_data:
+            print(data)
+
+    driver.quit()

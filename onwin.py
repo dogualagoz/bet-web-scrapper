@@ -37,7 +37,7 @@ def get_onwin_data():
     if 'driver' not in globals():
         driver = start_driver()
 
-    url = "https://onwin1764.com/sportsbook/live"
+    url = "https://onwin1765.com/sportsbook/live"
     if not open_page(driver, url):
         print("🚨 Siteye erişilemedi, program duruyor!")
         driver.quit()
@@ -101,3 +101,4 @@ def get_onwin_data():
         print("❌ Hata oluştu:", str(e))
 
     return matches_data
+

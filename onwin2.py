@@ -30,17 +30,6 @@ def open_page(driver, url, max_retries=5):
             time.sleep(1)
     return False
 
-# **Belirli bir element içinde scroll yapma fonksiyonu**
-def scroll_in_element(driver, element, max_attempts=5):
-    last_height = driver.execute_script("return arguments[0].scrollHeight;", element)
-    for _ in range(max_attempts):
-        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight;", element)
-        time.sleep(1)
-        new_height = driver.execute_script("return arguments[0].scrollHeight;", element)
-        if new_height == last_height:
-            break
-        last_height = new_height
-
 # **Futbol maçlarının linklerini çekme fonksiyonu**
 def get_match_links(driver):
     url = "https://onwin1765.com/sportsbook/live"
@@ -74,15 +63,6 @@ def get_match_links(driver):
             except:
                 continue
 
-        # **Markets bölgesini bul ve içinde scroll yap**
-        try:
-            container = driver.find_element(By.CLASS_NAME, "markets-main-container--Ui7dX")
-            print("🔄 Markets alanında scroll yapılıyor...")
-            scroll_in_element(driver, container, 5)
-        except Exception as e:
-            print(f"⚠️ Sayfa kaydırma hatası: {e}")
-            driver.execute_script("window.scrollBy(0, 500);")  # Yedek olarak sayfanın aşağı kaydırılması
-
         # **Her lig içindeki maçları bul**
         for lig in ligler:
             maclar = lig.find_elements(By.XPATH, ".//a[contains(@class, 'sb__reset_link')]")
@@ -108,81 +88,80 @@ def get_match_odds(driver, url):
 
     wait = WebDriverWait(driver, 10)  # Daha uzun süre bekleme eklendi
 
-    retries = 0
-    market_group = None
-
-    # **Market bölgesinde scroll yapma**
+    # **Doğru Market Bölgesini Bul**
     try:
-        container = driver.find_element(By.CLASS_NAME, "markets-main-container--Ui7dX")
-        print("🔄 Market bölgesinde scroll yapılıyor...")
-        scroll_in_element(driver, container, 5)
+        all_markets = driver.find_elements(By.CLASS_NAME, "market-group--SPHr8")
+        correct_market = None
+        
+        for market in all_markets:
+            try:
+                title_element = market.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
+                if title_element.text.strip() == "Toplam Gol Üst/Alt":  # Tam eşleşme kontrolü
+                    correct_market = market
+                    break
+            except:
+                continue
+
+        if not correct_market:
+            print("❌ Doğru Market bölgesi bulunamadı, maç atlanıyor...")
+            return []
+        
+        driver.execute_script("arguments[0].scrollIntoView();", correct_market)  
+        time.sleep(0.5)
+        print("\n✅ Doğru Market bölgesi bulundu.")
+
     except Exception as e:
-        print(f"⚠️ Sayfa kaydırma hatası: {e}")
-        driver.execute_script("window.scrollBy(0, 500);")
-
-    # **Market bölgesini bulmaya çalış**
-    while retries < 5:
-        try:
-            market_group = wait.until(EC.presence_of_element_located(
-                (By.XPATH, "//*[@id='sportsbook-center-scroll']/div/div/div[2]/div/div[5]/div[2]/div[2]/div[6]")
-            ))
-            driver.execute_script("arguments[0].scrollIntoView();", market_group)  
-            time.sleep(1)
-            print("\n✅ Doğru Market bölgesi bulundu.")
-            break
-        except:
-            print(f"\n⚠️ Doğru Market bölgesi bulunamadı! {retries + 1}. deneme...")
-            retries += 1
-            driver.execute_script("window.scrollBy(0, 500);")  # Yedek olarak sayfanın aşağı kaydırılması
-
-    if market_group is None:
-        print("❌ Market bölgesi bulunamadı, maç atlanıyor...")
+        print(f"⚠️ Market bölgesi bulunamadı! Hata: {e}")
         return []
 
     # **Oranları çek**
-    outcomes = market_group.find_elements(By.CLASS_NAME, "outcomes--HBEPX")
     match_odds = []
+    try:
+        outcomes = correct_market.find_elements(By.CLASS_NAME, "outcomes--HBEPX")
 
-    for outcome in outcomes:
-        try:
-            outcome_wrappers = outcome.find_elements(By.CLASS_NAME, "outcome-wrapper--lXXkI")
-            if len(outcome_wrappers) < 2:
-                continue  
-
-            top_odds_element = outcome_wrappers[0]
-            bottom_odds_element = outcome_wrappers[1]
-
+        for outcome in outcomes:
             try:
-                total_value = outcome.find_element(By.CLASS_NAME, "parameter--JXoWS").text.strip()
-            except:
-                total_value = "Bilinmiyor"
+                outcome_wrappers = outcome.find_elements(By.CLASS_NAME, "outcome-wrapper--lXXkI")
+                if len(outcome_wrappers) < 2:
+                    continue  
 
-            if not total_value.endswith(".5"):
-                continue  
+                top_odds_element = outcome_wrappers[0]
+                bottom_odds_element = outcome_wrappers[1]
 
-            retry_count = 0
-            while retry_count < 5:
                 try:
-                    top_value = top_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]
-                    bottom_value = bottom_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]
-                    if "+" in top_value or "+" in bottom_value or "-" in top_value or "-" in bottom_value:
-                        retry_count += 1
-                        time.sleep(0.5)
-                        continue
-                    break
+                    total_value = outcome.find_element(By.CLASS_NAME, "parameter--JXoWS").text.strip()
                 except:
-                    retry_count += 1
-                    time.sleep(0.5)
+                    total_value = "Bilinmiyor"
 
-            match_odds.append({
-                "Toplam Oran": total_value,
-                "Üst": top_value,
-                "Alt": bottom_value
-            })
+                if not total_value.endswith(".5"):
+                    continue  
 
-        except Exception as e:
-            print(f"⚠️ Veri çekme hatası: {e}")
-            continue
+                retry_count = 0
+                while retry_count < 5:
+                    try:
+                        top_value = top_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]
+                        bottom_value = bottom_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]
+                        if "+" in top_value or "+" in bottom_value or "-" in top_value or "-" in bottom_value:
+                            retry_count += 1
+                            time.sleep(0.3)  # Hızlandırıldı
+                            continue
+                        break
+                    except:
+                        retry_count += 1
+                        time.sleep(0.3)  # Hızlandırıldı
+
+                match_odds.append({
+                    "Toplam Oran": total_value,
+                    "Üst": top_value,
+                    "Alt": bottom_value
+                })
+
+            except Exception as e:
+                print(f"⚠️ Veri çekme hatası: {e}")
+                continue
+
+    except Exception as e:
+        print(f"⚠️ Oranları çekerken hata oluştu: {e}")
 
     return match_odds
 

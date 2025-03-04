@@ -1,7 +1,7 @@
 import requests
 
 def get_1xbet_data():
-    url = "https://1xlite-819117.top/service-api/LiveFeed/Get1x2_VZip"
+    url = "https://1xlite-931124.top/service-api/LiveFeed/Get1x2_VZip"
     params = {
         "count": 1000,
         "lng": "tr",

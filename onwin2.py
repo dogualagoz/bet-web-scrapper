@@ -55,14 +55,6 @@ def get_match_links(driver):
         ))
         print(f"✅ {len(ligler)} lig bulundu.")
 
-        # **Tüm ligleri aç (eğer kapalıysa)**
-        for lig in ligler:
-            try:
-                lig.click()
-                time.sleep(0.5)
-            except:
-                continue
-
         # **Her lig içindeki maçları bul**
         for lig in ligler:
             maclar = lig.find_elements(By.XPATH, ".//a[contains(@class, 'sb__reset_link')]")
@@ -84,40 +76,44 @@ def get_match_links(driver):
 def get_match_odds(driver, url):
     if not open_page(driver, url):
         print("🚨 Sayfa açılmadı, maç atlanıyor!")
-        return []
+        return None
 
     wait = WebDriverWait(driver, 10)  # Daha uzun süre bekleme eklendi
 
-    # **Doğru Market Bölgesini Bul**
     try:
-        all_markets = driver.find_elements(By.CLASS_NAME, "market-group--SPHr8")
-        correct_market = None
-        
-        for market in all_markets:
+        # **Takım isimlerini bul**
+        team_elements = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "team--uwjbd")))
+        if len(team_elements) < 2:
+            print("⚠️ Takım isimleri bulunamadı, maç atlanıyor.")
+            return None
+
+        takim1 = team_elements[0].text.strip()
+        takim2 = team_elements[1].text.strip()
+
+        print(f"\n⚽ Maç: {takim1} - {takim2}")
+
+        # **Doğru Market bölgesini bul**
+        market_groups = driver.find_elements(By.CLASS_NAME, "market-group--SPHr8")
+        market_group = None
+
+        for group in market_groups:
             try:
-                title_element = market.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
-                if title_element.text.strip() == "Toplam Gol Üst/Alt":  # Tam eşleşme kontrolü
-                    correct_market = market
+                header = group.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
+                if header.text.strip() == "Toplam Gol Üst/Alt":
+                    market_group = group
                     break
             except:
                 continue
 
-        if not correct_market:
+        if not market_group:
             print("❌ Doğru Market bölgesi bulunamadı, maç atlanıyor...")
-            return []
-        
-        driver.execute_script("arguments[0].scrollIntoView();", correct_market)  
-        time.sleep(0.5)
+            return None
+
         print("\n✅ Doğru Market bölgesi bulundu.")
 
-    except Exception as e:
-        print(f"⚠️ Market bölgesi bulunamadı! Hata: {e}")
-        return []
-
-    # **Oranları çek**
-    match_odds = []
-    try:
-        outcomes = correct_market.find_elements(By.CLASS_NAME, "outcomes--HBEPX")
+        # **Oranları çek**
+        outcomes = market_group.find_elements(By.CLASS_NAME, "outcomes--HBEPX")
+        match_odds = []
 
         for outcome in outcomes:
             try:
@@ -133,22 +129,18 @@ def get_match_odds(driver, url):
                 except:
                     total_value = "Bilinmiyor"
 
-                if not total_value.endswith(".5"):
+                if not total_value.endswith(".5"):  # Sadece buçuklu oranları al
                     continue  
 
                 retry_count = 0
-                while retry_count < 5:
+                while retry_count < 3:
                     try:
                         top_value = top_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]
                         bottom_value = bottom_odds_element.find_element(By.CLASS_NAME, "odds--YbHFY").text.strip().split("\n")[-1]
-                        if "+" in top_value or "+" in bottom_value or "-" in top_value or "-" in bottom_value:
-                            retry_count += 1
-                            time.sleep(0.3)  # Hızlandırıldı
-                            continue
                         break
                     except:
                         retry_count += 1
-                        time.sleep(0.3)  # Hızlandırıldı
+                        time.sleep(0.3)
 
                 match_odds.append({
                     "Toplam Oran": total_value,
@@ -160,10 +152,15 @@ def get_match_odds(driver, url):
                 print(f"⚠️ Veri çekme hatası: {e}")
                 continue
 
-    except Exception as e:
-        print(f"⚠️ Oranları çekerken hata oluştu: {e}")
+        return {
+            "takim1": takim1,
+            "takim2": takim2,
+            "oranlar": match_odds
+        }
 
-    return match_odds
+    except Exception as e:
+        print(f"⚠️ Genel hata oluştu: {e}")
+        return None
 
 # **Ana Çalıştırma Kodu**
 if __name__ == "__main__":
@@ -176,16 +173,18 @@ if __name__ == "__main__":
         driver.quit()
         exit()
 
+    matches_data = []  # Bellekte maç verilerini saklamak için liste
+
     for index, match_url in enumerate(match_links, start=1):
         print(f"\n🎯 [{index}/{len(match_links)}] Maç için oranlar çekiliyor: {match_url}")
-        odds_data = get_match_odds(driver, match_url)
+        match_data = get_match_odds(driver, match_url)
 
-        if not odds_data:
-            print("⚠️ Oran bulunamadı, maç atlanıyor.")
-            continue
-
-        print("\n✅ Çekilen Oranlar:")
-        for data in odds_data:
-            print(data)
+        if match_data:
+            matches_data.append(match_data)
 
     driver.quit()
+
+    # Bellekte tutulan verileri kontrol et
+    print("\n📊 **Tüm Maç Verileri:**")
+    for match in matches_data:
+        print(match)

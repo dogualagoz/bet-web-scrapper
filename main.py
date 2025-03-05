@@ -1,94 +1,55 @@
-import time
-import pandas as pd
-import os
-from onwin import get_onwin_data
+from onwin import get_match_odds, get_match_links, start_driver, open_page
 from xbet import get_1xbet_data
-from fuzzywuzzy import fuzz
-from tabulate import tabulate
+import time
 
-# 📌 **Takım isimlerini eşleştirme fonksiyonu**
-def match_teams(takim1, takim2, xbet_matches, threshold=80):
-    for match in xbet_matches:
-        xbet_takim1, xbet_takim2 = match["takim1"].lower(), match["takim2"].lower()
-        takim1_norm, takim2_norm = takim1.lower(), takim2.lower()
+# **Driver başlat**
+driver = start_driver()
 
-        # Benzerlik Skoru ve İçerme Kontrolü
-        score1 = fuzz.partial_ratio(takim1_norm, xbet_takim1)
-        score2 = fuzz.partial_ratio(takim2_norm, xbet_takim2)
+if not driver:
+    print("❌ Driver başlatılamadı, program duruyor.")
+    exit()
 
-        if (score1 > threshold and score2 > threshold) or (takim1_norm in xbet_takim1 and takim2_norm in xbet_takim2):
-            return match
-    return None
-
-# 📌 **Canlı veri güncelleme döngüsü**
-def run_live_updates():
-    os.system('clear' if os.name == 'posix' else 'cls')  # Terminali sadece başta temizle
-
-    while True:
-        print("\n📊 **Canlı Bahis Analiz Sonuçları** 📊\n")
-
-        # **ONWIN verisini çek ve yazdır**
-        print("🔄 Onwin verileri çekiliyor...")
-        onwin_data = get_onwin_data()
-        print("\n✅ ONWIN Güncellenmiş Veriler:\n")
-        for match in onwin_data:
-            print(match)
-
-        print("\n" + "-" * 50)  # ONWIN bölümü ile XBET arasına ayırıcı ekleyelim
-
-        # **XBET verisini çek ve yazdır**
-        print("\n🔄 1XBET verileri çekiliyor...")
+while True:
+    try:
+        # **Verileri çek**
         xbet_data = get_1xbet_data()
-        print("\n✅ 1XBET Güncellenmiş Veriler:\n")
-        for match in xbet_data:
-            print(match)
+        onwin_data = [get_match_odds(driver, link) for link in get_match_links(driver)]
 
-        print("\n" + "-" * 50)  # XBET bölümü ile tablo arasına ayırıcı ekleyelim
+        ortak_maclar = []
+        for xbet in xbet_data:
+            for onwin in onwin_data:
+                if not onwin:
+                    continue  # Hatalı veri gelirse atla
 
-        # **Eşleşen Maçları Analiz Et**
-        matched_matches = []
-        for onwin_match in onwin_data:
-            matched_xbet = match_teams(onwin_match["takim1"], onwin_match["takim2"], xbet_data)
+                if xbet["takim1"] in onwin["takim1"] and xbet["takim2"] in onwin["takim2"]:
+                    for toplam_oran in xbet["oranlar"]:
+                        if toplam_oran in [o["Toplam Oran"] for o in onwin["oranlar"]]:
+                            xbet_ust = xbet["oranlar"][toplam_oran]["Üst"]
+                            xbet_alt = xbet["oranlar"][toplam_oran]["Alt"]
+                            onwin_ust = next(o["Üst"] for o in onwin["oranlar"] if o["Toplam Oran"] == toplam_oran)
+                            onwin_alt = next(o["Alt"] for o in onwin["oranlar"] if o["Toplam Oran"] == toplam_oran)
 
-            if matched_xbet:
-                toplam_check = "✅ Aynı" if str(onwin_match["toplam"]) == str(matched_xbet["toplam"]) else "❌ Farklı"
-                
-                # Sonuç hesaplamalarını düzgün formatta gösterelim
-                try:
-                    sonuc1 = round((1 / float(matched_xbet["alt"])) + (1 / float(onwin_match["ust"])), 2) if toplam_check == "✅ Aynı" else "-"
-                    sonuc2 = round((1 / float(matched_xbet["ust"])) + (1 / float(onwin_match["alt"])), 2) if toplam_check == "✅ Aynı" else "-"
-                    bahis_uygun = "✅" if toplam_check == "✅ Aynı" and (sonuc1 < 1 or sonuc2 < 1) else "❌"
-                except (ValueError, TypeError, ZeroDivisionError):
-                    sonuc1, sonuc2, bahis_uygun = "-", "-", "❌"
+                            sonuc1 = 1/float(xbet_alt) + 1/float(onwin_ust)
+                            sonuc2 = 1/float(xbet_ust) + 1/float(onwin_alt)
+                            uygunluk1 = "✅ Uygun" if sonuc1 < 1 else "❌ Uygun Değil"
+                            uygunluk2 = "✅ Uygun" if sonuc2 < 1 else "❌ Uygun Değil"
 
-                matched_matches.append({
-                    "takim1": onwin_match["takim1"],
-                    "takim2": onwin_match["takim2"],
-                    "xbet_toplam": matched_xbet["toplam"],
-                    "xbet_alt": matched_xbet["alt"],
-                    "xbet_ust": matched_xbet["ust"],
-                    "onwin_toplam": onwin_match["toplam"],
-                    "onwin_alt": onwin_match["alt"],
-                    "onwin_ust": onwin_match["ust"],
-                    "toplam_check": toplam_check,
-                    "sonuc1": sonuc1,
-                    "sonuc2": sonuc2,
-                    "bahis_uygun": bahis_uygun
-                })
+                            sonuc_str = (f"{xbet['takim1']} - {xbet['takim2']} | "
+                                         f"Toplam Oran: {toplam_oran} | "
+                                         f"xbet Alt: {xbet_alt} | onwin Üst: {onwin_ust} | "
+                                         f"xbet Üst: {xbet_ust} | onwin Alt: {onwin_alt} | "
+                                         f"Sonuç1: {sonuc1:.2f} ({uygunluk1}) | "
+                                         f"Sonuç2: {sonuc2:.2f} ({uygunluk2})")
 
-        # 📌 **Tabloyu göster**
-        if matched_matches:
-            df = pd.DataFrame(matched_matches)
+                            print(sonuc_str)
+                            ortak_maclar.append(sonuc_str)
 
-            # Boş değerleri "-" yaparak tabloyu bozmadan gösterelim
-            df = df.fillna("-")
+        # **Sonuçları dosyaya yaz**
+        with open("sonuclar.txt", "w", encoding="utf-8") as f:
+            for mac in ortak_maclar:
+                f.write(mac + "\n")
 
-            print(tabulate(df, headers='keys', tablefmt='fancy_grid', showindex=False))
-        else:
-            print("\n⚠️ Eşleşen maç bulunamadı!\n")
+    except Exception as e:
+        print(f"⚠️ Hata oluştu: {e}")
 
-        # 📌 **10 saniye bekleyip tekrar veri çekecek**
-        time.sleep(10)
-
-if __name__ == "__main__":
-    run_live_updates()
+    time.sleep(5)

@@ -1,12 +1,11 @@
 import time
-import re
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import unidecode  
+import unidecode
 
-# **Selenium Ayarları**
+# **Selenium Başlatma Ayarları**
 options = uc.ChromeOptions()
 options.headless = False  
 options.add_argument("--disable-blink-features=AutomationControlled")
@@ -15,7 +14,7 @@ options.add_argument("--disable-blink-features=AutomationControlled")
 def start_driver():
     print("\n🔄 Selenium Başlatılıyor...")
     try:
-        driver = uc.Chrome(options=options, version_main=133)
+        driver = uc.Chrome(options=options, version_main=133)  # Chrome sürümünü uyumlu hale getir
         print("✅ ChromeDriver başarıyla başlatıldı.")
         return driver
     except Exception as e:
@@ -29,7 +28,7 @@ def open_page(driver, url, max_retries=5):
         try:
             driver.get(url)
             print(f"\n✅ Sayfa açıldı: {url}")
-            time.sleep(3)  # Bekleme süresi optimize edildi
+            time.sleep(3)
             return True
         except Exception as e:
             print(f"❌ Sayfa yüklenemedi! {retries + 1}. deneme... Hata: {e}")
@@ -39,9 +38,7 @@ def open_page(driver, url, max_retries=5):
 
 # **Takım isimlerini normalize et**
 def normalize_team_name(name):
-    name = unidecode.unidecode(name).lower()
-    name = re.sub(r"\s|-|\(.*?\)", "", name)  # Parantez içeriği kaldırılıyor
-    return name
+    return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
 
 # **Maç linklerini çek**
 def get_match_links(driver):
@@ -55,7 +52,7 @@ def get_match_links(driver):
 
     try:
         ligler = wait.until(EC.presence_of_all_elements_located(
-            (By.XPATH, "//*[@id='sportsbook-center-scroll']//div[contains(@class, 'menu-category--DcdaK')]")
+            (By.XPATH, "//*[@id='sportsbook-center-scroll']/div/div/div[1]/div/div[2]/div[2]/div[contains(@class, 'menu-category--DcdaK')]")
         ))
 
         for lig in ligler:
@@ -65,7 +62,7 @@ def get_match_links(driver):
                 if link:
                     match_links.append(link)
 
-        print(f"\n📌 **Onwin'den Toplam {len(match_links)} maç linki bulundu.**")
+        print(f"\n📌 **Toplam {len(match_links)} maç linki bulundu.**")
 
     except Exception as e:
         print(f"❌ Hata oluştu: {e}")
@@ -110,22 +107,24 @@ def get_match_odds(driver, url):
         for outcome in outcomes:
             try:
                 total_value = outcome.find_element(By.CLASS_NAME, "parameter--JXoWS").text.strip()
-                if not total_value.endswith(".5"):
+                if not total_value.endswith(".5"):  
                     continue  
 
-                odds = outcome.find_elements(By.CLASS_NAME, "odds--YbHFY")
-                if len(odds) < 2:
+                odds_elements = outcome.find_elements(By.CLASS_NAME, "odds--YbHFY")
+                if len(odds_elements) < 2:
                     continue
 
-                top_value = odds[0].text.strip().split("\n")[-1] or None
-                bottom_value = odds[1].text.strip().split("\n")[-1] or None
+                top_value = odds_elements[0].text.strip().split("\n")[-1] if "\n" in odds_elements[0].text.strip() else None
+                bottom_value = odds_elements[1].text.strip().split("\n")[-1] if "\n" in odds_elements[1].text.strip() else None
 
-                if top_value and bottom_value:
-                    match_odds.append({
-                        "Toplam Oran": total_value,
-                        "Üst": top_value,
-                        "Alt": bottom_value
-                    })
+                if not top_value or not bottom_value:
+                    continue  # Boş oran varsa bu oranı kıyaslamaya alma
+
+                match_odds.append({
+                    "Toplam Oran": total_value,
+                    "Üst": top_value,
+                    "Alt": bottom_value
+                })
 
             except:
                 continue

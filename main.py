@@ -14,6 +14,8 @@ while True:
         xbet_data = get_1xbet_data()
         print(f"📌 **Xbet'ten {len(xbet_data)} maç çekildi.**")
 
+        ortak_mac_sayisi = 0  # Kaç maçın eşleştiğini takip etmek için
+
         # **Onwin maçlarını çek ve anında kıyaslama yap**
         for link in get_match_links(driver):
             onwin_data = get_match_odds(driver, link)
@@ -29,7 +31,7 @@ while True:
                             onwin_ust = next(o["Üst"] for o in onwin_data["oranlar"] if o["Toplam Oran"] == toplam_oran)
                             onwin_alt = next(o["Alt"] for o in onwin_data["oranlar"] if o["Toplam Oran"] == toplam_oran)
 
-                            # **Boş oranları kontrol et, boşsa işlem yapma**
+                            # **Boş veya hatalı oranları kontrol et, kıyaslamaya dahil etme**
                             if not xbet_ust or not xbet_alt or not onwin_ust or not onwin_alt:
                                 continue
 
@@ -47,10 +49,13 @@ while True:
                                          f"Sonuç2: {sonuc2:.2f} ({uygunluk2})")
 
                             print(sonuc_str)
+                            ortak_mac_sayisi += 1
 
                             # **Sonuçları dosyaya kaydet**
                             with open("sonuclar.txt", "a", encoding="utf-8") as f:
                                 f.write(sonuc_str + "\n")
+
+        print(f"✅ **Bu turda toplam {ortak_mac_sayisi} maç eşleşti.**")
 
     except Exception as e:
         print(f"⚠️ Hata oluştu: {e}")

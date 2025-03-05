@@ -1,8 +1,10 @@
 import requests
-import unidecode
+import re
+import unidecode  
 
 def normalize_team_name(name):
-    return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "")
+    name = unidecode.unidecode(name).lower()
+    return re.sub(r"\s|-|\(.*?\)", "", name)  
 
 def get_1xbet_data():
     url = "https://1xlite-238339.top/service-api/LiveFeed/Get1x2_VZip"
@@ -25,19 +27,15 @@ def get_1xbet_data():
 
                 if toplam_gol is not None and oran_degeri is not None:
                     toplam_gol = str(toplam_gol)
-
                     if toplam_gol.endswith(".5"):
-                        if toplam_gol not in oranlar:
-                            oranlar[toplam_gol] = {"Üst": None, "Alt": None}
-
+                        oranlar.setdefault(toplam_gol, {"Üst": None, "Alt": None})
                         if oran_tipi == 9:
                             oranlar[toplam_gol]["Üst"] = oran_degeri
                         elif oran_tipi == 10:
                             oranlar[toplam_gol]["Alt"] = oran_degeri
 
-        if not any(v["Üst"] is not None or v["Alt"] is not None for v in oranlar.values()):
-            continue
+        if any(v["Üst"] and v["Alt"] for v in oranlar.values()):
+            matches.append({"takim1": takim1, "takim2": takim2, "oranlar": oranlar})
 
-        matches.append({"takim1": takim1, "takim2": takim2, "oranlar": oranlar})
-
+    print(f"📌 **1xBet'ten {len(matches)} maç çekildi.**")
     return matches

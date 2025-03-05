@@ -12,7 +12,7 @@ options.add_argument("--disable-blink-features=AutomationControlled")
 # **Driver Başlat**
 def start_driver():
     print("\n🔄 Selenium Başlatılıyor...")
-    driver = uc.Chrome(options=options)
+    driver = uc.Chrome(options=options, version_main=133)
     return driver
 
 # **Sayfa Açma ve CAPTCHA Bekleme**

@@ -1,51 +1,43 @@
 import requests
+import unidecode
+
+def normalize_team_name(name):
+    return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "")
 
 def get_1xbet_data():
-    url = "https://1xlite-931124.top/service-api/LiveFeed/Get1x2_VZip"
-    params = {
-        "count": 1000,
-        "lng": "tr",
-        "mode": 4,
-        "country": 190,
-        "top": "true",
-        "partner": 7,
-        "virtualSports": "true",
-        "noFilterBlockEvent": "true"
-    }
+    url = "https://1xlite-238339.top/service-api/LiveFeed/Get1x2_VZip"
+    params = {"count": 1000, "lng": "tr", "mode": 4, "country": 190, "noFilterBlockEvent": "true"}
 
     response = requests.get(url, params=params)
     data = response.json()
 
     matches = []
-    for event in data.get('Value', []):
-        match_data = {
-            "takim1": event.get("O1", "Bilinmeyen Takım"),
-            "takim2": event.get("O2", "Bilinmeyen Takım"),
-            "lig": event.get("L", "Bilinmeyen Lig"),
-            "toplam": None,
-            "ust": None,
-            "alt": None
-        }
+    for event in data.get("Value", []):
+        takim1 = normalize_team_name(event.get("O1", ""))
+        takim2 = normalize_team_name(event.get("O2", ""))
 
-        total_value = None  # Toplam değeri belirlemek için
-        
-        for bet in event.get('E', []):
-            if bet["T"] == 9:  # Üst oran
-                match_data["ust"] = bet["C"]
-                total_value = bet.get("P", total_value)  # P değeri toplam olabilir
-            elif bet["T"] == 10:  # Alt oran
-                match_data["alt"] = bet["C"]
-                if bet.get("P", None) == total_value:  # Aynı P varsa, bu toplamdır
-                    match_data["toplam"] = total_value
+        oranlar = {}
+        for ae in event.get('AE', []):
+            for bet in ae.get('ME', []):
+                toplam_gol = bet.get("P")
+                oran_tipi = bet.get("T")
+                oran_degeri = bet.get("C")
 
-        # Eğer toplam belirlenemediyse, en sık tekrar eden P değeri al
-        if match_data["toplam"] is None and total_value is not None:
-            match_data["toplam"] = total_value
+                if toplam_gol is not None and oran_degeri is not None:
+                    toplam_gol = str(toplam_gol)
 
-        matches.append(match_data)
+                    if toplam_gol.endswith(".5"):
+                        if toplam_gol not in oranlar:
+                            oranlar[toplam_gol] = {"Üst": None, "Alt": None}
+
+                        if oran_tipi == 9:
+                            oranlar[toplam_gol]["Üst"] = oran_degeri
+                        elif oran_tipi == 10:
+                            oranlar[toplam_gol]["Alt"] = oran_degeri
+
+        if not any(v["Üst"] is not None or v["Alt"] is not None for v in oranlar.values()):
+            continue
+
+        matches.append({"takim1": takim1, "takim2": takim2, "oranlar": oranlar})
 
     return matches
-
-# **Test için çalıştır**
-if __name__ == "__main__":
-    get_1xbet_data()

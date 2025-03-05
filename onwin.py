@@ -3,102 +3,150 @@ import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import unidecode  # Özel karakterleri kaldırmak için
 
-# **Chrome ayarları (Bot olarak algılanmayı azaltır)**
+# **Selenium Başlatma Ayarları**
 options = uc.ChromeOptions()
-options.headless = False  # Görünür mod
+options.headless = False  
 options.add_argument("--disable-blink-features=AutomationControlled")
 
-# **WebDriver başlatma fonksiyonu**
+# **Driver Başlat**
 def start_driver():
     print("\n🔄 Selenium Başlatılıyor...")
-    driver = uc.Chrome(options=options)
-    return driver
+    try:
+        driver = uc.Chrome(options=options, version_main=133)  # Chrome sürümünü uyumlu hale getir
+        print("✅ ChromeDriver başarıyla başlatıldı.")
+        return driver
+    except Exception as e:
+        print(f"❌ Selenium başlatma hatası: {e}")
+        return None
 
-# **Sayfayı açma fonksiyonu**
-def open_page(driver, url, max_retries=3):
+# **Sayfa Açma Fonksiyonu**
+def open_page(driver, url, max_retries=5):
     retries = 0
     while retries < max_retries:
         try:
             driver.get(url)
-            print("\n✅ Sayfa açıldı:", url)
+            print(f"\n✅ Sayfa açıldı: {url}")
+            time.sleep(4)
             return True
         except Exception as e:
             print(f"❌ Sayfa yüklenemedi! {retries + 1}. deneme... Hata: {e}")
             retries += 1
-            time.sleep(5)
+            time.sleep(1)
     return False
 
-# **Ana fonksiyon: Onwin verilerini çekme**
-def get_onwin_data():
-    global driver
+# **Takım isimlerini normalize et**
+def normalize_team_name(name):
+    return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "")
 
-    # **WebDriver başlat (Eğer daha önce başlatılmadıysa)**
-    if 'driver' not in globals():
-        driver = start_driver()
-
+# **Maç linklerini çek**
+def get_match_links(driver):
     url = "https://onwin1765.com/sportsbook/live"
+
     if not open_page(driver, url):
-        print("🚨 Siteye erişilemedi, program duruyor!")
-        driver.quit()
         return []
 
-    # **Cloudflare CAPTCHA geçmek için bekleme süresi**
-    print("\n🛑 Cloudflare CAPTCHA geçin. 10 saniye bekleniyor...")
-    time.sleep(10)
-
-    # **WebDriverWait ayarla**
     wait = WebDriverWait(driver, 30)
-    matches_data = []
+    match_links = []
 
     try:
-        # **Tüm maçları al**
-        matches = wait.until(EC.presence_of_all_elements_located(
-            (By.XPATH, "//div[contains(@class, 'event-row--KpnRq')]")
+        ligler = wait.until(EC.presence_of_all_elements_located(
+            (By.XPATH, "//*[@id='sportsbook-center-scroll']/div/div/div[1]/div/div[2]/div[2]/div[contains(@class, 'menu-category--DcdaK')]")
         ))
 
-        print(f"\n📌 Toplam {len(matches)} maç bulundu.\n")
+        for lig in ligler:
+            maclar = lig.find_elements(By.XPATH, ".//a[contains(@class, 'sb__reset_link')]")
+            for mac in maclar:
+                link = mac.get_attribute("href")
+                if link:
+                    match_links.append(link)
 
-        for match in matches:
-            match_data = {}
-
-            # **Takım isimlerini al**
-            try:
-                team_elements = match.find_elements(By.XPATH, ".//div[contains(@class, 'teams--voqkz')]")
-                if team_elements:
-                    teams = team_elements[0].text.strip().split("\n")
-                    takim1 = teams[0] if len(teams) > 0 else "Bilinmeyen"
-                    takim2 = teams[1] if len(teams) > 1 else "Bilinmeyen"
-                else:
-                    takim1, takim2 = "Bilinmeyen", "Bilinmeyen"
-            except:
-                takim1, takim2 = "Bilinmeyen", "Bilinmeyen"
-
-            match_data["takim1"] = takim1
-            match_data["takim2"] = takim2
-
-            # **Oranları al**
-            all_odds = []
-            odds_elements = match.find_elements(By.XPATH, ".//div[contains(@class, 'cell--KxlIy')]")
-            for odd in odds_elements:
-                if "locked--CPs7M" in odd.get_attribute("class"):
-                    all_odds.append("Boş")
-                else:
-                    all_odds.append(odd.text.strip())
-
-            # **Eksik oranları tamamla**
-            while len(all_odds) < 11:
-                all_odds.append("Boş")
-
-            match_data["Oranlar"] = all_odds
-            match_data["toplam"] = all_odds[-3]
-            match_data["ust"] = all_odds[-2]
-            match_data["alt"] = all_odds[-1]
-
-            matches_data.append(match_data)
+        print(f"\n📌 **Toplam {len(match_links)} maç linki bulundu.**")
 
     except Exception as e:
-        print("❌ Hata oluştu:", str(e))
+        print(f"❌ Hata oluştu: {e}")
 
-    return matches_data
+    return match_links  
 
+# **Maç oranlarını çek**
+def get_match_odds(driver, url):
+    if not open_page(driver, url):
+        return None
+
+    wait = WebDriverWait(driver, 10)
+
+    try:
+        team_elements = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "team--uwjbd")))
+        if len(team_elements) < 2:
+            return None
+
+        takim1 = normalize_team_name(team_elements[0].text.strip())
+        takim2 = normalize_team_name(team_elements[1].text.strip())
+
+        print(f"\n⚽ Maç: {takim1} - {takim2}")
+
+        market_groups = driver.find_elements(By.CLASS_NAME, "market-group--SPHr8")
+        market_group = None
+
+        for group in market_groups:
+            try:
+                header = group.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
+                if "Toplam Gol Üst/Alt" in header.text.strip():
+                    market_group = group
+                    break
+            except:
+                continue
+
+        if not market_group:
+            return None
+
+        match_odds = []
+        outcomes = market_group.find_elements(By.CLASS_NAME, "outcomes--HBEPX")
+
+        for outcome in outcomes:
+            try:
+                total_value = outcome.find_element(By.CLASS_NAME, "parameter--JXoWS").text.strip()
+                if not total_value.endswith(".5"):  
+                    continue  
+
+                top_value = outcome.find_elements(By.CLASS_NAME, "odds--YbHFY")[0].text.strip().split("\n")[-1]
+                bottom_value = outcome.find_elements(By.CLASS_NAME, "odds--YbHFY")[1].text.strip().split("\n")[-1]
+
+                match_odds.append({
+                    "Toplam Oran": total_value,
+                    "Üst": top_value,
+                    "Alt": bottom_value
+                })
+
+            except:
+                continue
+
+        return {"takim1": takim1, "takim2": takim2, "oranlar": match_odds}
+
+    except:
+        return None
+
+# **Ana Çalıştırma Kodu**
+if __name__ == "__main__":
+    driver = start_driver()
+    
+    match_links = get_match_links(driver)
+
+    if not match_links:
+        driver.quit()
+        exit()
+
+    matches_data = []
+
+    for index, match_url in enumerate(match_links, start=1):
+        match_data = get_match_odds(driver, match_url)
+
+        if match_data:
+            matches_data.append(match_data)
+
+    driver.quit()
+
+    print("\n📊 **Tüm Maç Verileri:**")
+    for match in matches_data:
+        print(match)

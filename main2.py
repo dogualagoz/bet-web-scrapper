@@ -1,4 +1,4 @@
-from onwin_manual  import get_match_odds, get_match_links, start_driver
+from onwin import get_match_odds, get_match_links, start_driver
 from xbet import get_1xbet_data
 import time
 import os
@@ -72,22 +72,17 @@ if not driver:
 try:
     while True:
         try:
-            # **1xBet verilerini çek**
+            # **Veri çekme işlemi**
             xbet_data = get_1xbet_data()
             print(f"📌 **Xbet'ten {len(xbet_data)} maç çekildi.**")
 
             matched_games = 0  # Eşleşen maçları takip et
 
-            # **Onwin maç linklerini al**
-            onwin_links = get_match_links(driver)
-
-            # **Her Onwin maçı için veri çek**
-            for link in onwin_links:
+            for link in get_match_links(driver):
                 onwin_data = get_match_odds(driver, link)
                 if not onwin_data:
                     continue  # Geçersiz veriyi atla
 
-                # **Onwin ve Xbet eşleşmelerini kontrol et**
                 for xbet in xbet_data:
                     if xbet["takim1"] in onwin_data["takim1"] and xbet["takim2"] in onwin_data["takim2"]:
                         for total_odds in xbet["oranlar"]:
@@ -101,7 +96,7 @@ try:
                                 if not xbet_ust or not xbet_alt or not onwin_ust or not onwin_alt:
                                     continue
 
-                                # **Arbitraj Formül Hesaplaması**
+                                # **Formül hesaplaması**
                                 result1 = 1/float(xbet_alt) + 1/float(onwin_ust)
                                 result2 = 1/float(xbet_ust) + 1/float(onwin_alt)
                                 valid1 = "✅ Uygun" if result1 < 1 else "❌ Uygun Değil"

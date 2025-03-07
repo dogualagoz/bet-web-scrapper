@@ -7,7 +7,7 @@ def normalize_team_name(name):
     return re.sub(r"\s|-|\(.*?\)", "", name)  
 
 def get_1xbet_data():
-    url = "https://1xlite-238339.top/service-api/LiveFeed/Get1x2_VZip"
+    url = "https://1xlite-5640301.top/service-api/LiveFeed/Get1x2_VZip"
     params = {"count": 1000, "lng": "tr", "mode": 4, "country": 190, "noFilterBlockEvent": "true"}
 
     response = requests.get(url, params=params)

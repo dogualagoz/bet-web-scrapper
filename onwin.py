@@ -28,7 +28,7 @@ def open_page(driver, url, max_retries=5):
         try:
             driver.get(url)
             print(f"\n✅ Sayfa açıldı: {url}")
-            time.sleep(3)
+            time.sleep(10)
             return True
         except Exception as e:
             print(f"❌ Sayfa yüklenemedi! {retries + 1}. deneme... Hata: {e}")
@@ -42,7 +42,7 @@ def normalize_team_name(name):
 
 # **Maç linklerini çek**
 def get_match_links(driver):
-    url = "https://onwin1765.com/sportsbook/live"
+    url = "https://onwin1766.com/sportsbook/live"
 
     if not open_page(driver, url):
         return []

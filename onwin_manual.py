@@ -10,25 +10,27 @@ options = uc.ChromeOptions()
 options.headless = False  
 options.add_argument("--disable-blink-features=AutomationControlled")
 
+# **Driver Başlat**
+def start_driver():
+    print("\n🔄 Selenium Başlatılıyor...")
+    try:
+        driver = uc.Chrome(options=options, version_main=133)
+        print("✅ ChromeDriver başarıyla başlatıldı.")
+
+        # **Captcha için bekle (Sadece İlk Açılışta)**
+        driver.get("https://onwin1767.com/sportsbook/live")
+        print("⚠️ Captcha'yı geçmek için 10 saniye bekleniyor...")
+        time.sleep(10)  
+        print("✅ Captcha süresi sona erdi, devam ediliyor...")
+
+        return driver
+    except Exception as e:
+        print(f"❌ Selenium başlatma hatası: {e}")
+        return None
+
 # **Takım isimlerini normalize et**
 def normalize_team_name(name):
     return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-
-# **Sayfanın yüklendiğini kontrol et**
-def wait_for_page_load(driver, timeout=5):
-    try:
-        WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "team--uwjbd"))
-        )
-        return True
-    except:
-        return False
-
-# **Oran verisini temizleme fonksiyonu**
-def clean_odds_text(element):
-    text = element.text.strip()
-    parts = text.split("\n")
-    return parts[-1] if len(parts) > 1 else None  # Sadece sayıyı al
 
 # **Maç linklerini çek**
 def get_match_links(driver):
@@ -52,19 +54,34 @@ def get_match_links(driver):
         print(f"❌ Hata oluştu: {e}")
 
     elapsed_time = time.time() - start_time
-    print(f"📌 **Onwin: Toplam {len(match_links)} maç linki bulundu ({elapsed_time:.2f} saniye)**")
+    print(f"📌 **Toplam {len(match_links)} maç linki bulundu ({elapsed_time:.2f} saniye)**")
 
     return match_links  
+
+# **Sayfanın yüklendiğini kontrol et**
+def wait_for_page_load(driver, timeout=5):
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "team--uwjbd"))
+        )
+        return True
+    except:
+        return False
+
+# **Oran verisini temizleme fonksiyonu**
+def clean_odds_text(element):
+    text = element.text.strip()
+    parts = text.split("\n")
+    return parts[-1] if len(parts) > 1 else None  
 
 # **Maç oranlarını çek**
 def get_match_odds(driver, url):
     try:
-        driver.get(url)  # Sayfa yükle
+        driver.get(url)  
         if not wait_for_page_load(driver, timeout=5):
             print(f"⚠️ Sayfa yüklenmedi, atlanıyor: {url}")
             return None
 
-        # **Takım isimlerini al**
         team_elements = driver.find_elements(By.CLASS_NAME, "team--uwjbd")
         if len(team_elements) < 2:
             return None

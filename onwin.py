@@ -42,7 +42,7 @@ def normalize_team_name(name):
 
 # **Maç linklerini çek**
 def get_match_links(driver):
-    url = "https://onwin1766.com/sportsbook/live"
+    url = "https://onwin1767.com/sportsbook/live"
 
     if not open_page(driver, url):
         return []

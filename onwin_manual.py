@@ -30,6 +30,8 @@ def start_driver():
 
 # **Takım isimlerini normalize et**
 def normalize_team_name(name):
+    if not name:
+        return ""
     return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
 
 # **Maç linklerini çek**
@@ -68,14 +70,18 @@ def wait_for_page_load(driver, timeout=5):
     except:
         return False
 
-# **Oran verisini temizleme fonksiyonu**
+# **Oran verisini temizleme fonksiyonu (GÜNCELLENDİ)**
 def clean_odds_text(element):
     text = element.text.strip()
     parts = text.split("\n")
-    return parts[-1] if len(parts) > 1 else None  
+    
+    # **Eğer oran yoksa, None döndür**
+    if len(parts) < 2:
+        return None  
+    return parts[-1]  # **Sadece sayıyı al**
 
-# **Maç oranlarını çek**
-def get_match_odds(driver, url):
+# **Maç oranlarını çek (GÜNCELLENDİ)**
+def get_match_odds(driver, url, track_for_seconds=0):
     try:
         driver.get(url)  
         if not wait_for_page_load(driver, timeout=5):
@@ -95,7 +101,7 @@ def get_match_odds(driver, url):
         for group in market_groups:
             try:
                 header = group.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
-                if "Toplam Gol Üst/Alt" in header.text.strip():
+                if header.text.strip() == "Toplam Gol Üst/Alt":  # **Sadece tam eşleşmeyi kabul et**
                     market_group = group
                     break
             except:
@@ -120,17 +126,42 @@ def get_match_odds(driver, url):
                 top_value = clean_odds_text(odds_elements[0])
                 bottom_value = clean_odds_text(odds_elements[1])
 
+                # **Eğer oranlardan biri None ise atla**
                 if not top_value or not bottom_value:
                     continue  
 
                 match_odds.append({
                     "Toplam Oran": total_value,
                     "Üst": top_value,
-                    "Alt": bottom_value
+                    "Alt": bottom_value,
+                    "Üst Element": odds_elements[0],  # **Elementi kaydet**
+                    "Alt Element": odds_elements[1]   # **Elementi kaydet**
                 })
 
             except:
                 continue
+
+        if track_for_seconds > 0:
+            print(f"⏳ Oran düşük, {track_for_seconds} saniye boyunca tekrar kontrol ediliyor...")
+            start_time = time.time()
+
+            while time.time() - start_time < track_for_seconds:
+                time.sleep(0.5)  
+
+                for odds in match_odds:
+                    try:
+                        updated_ust = clean_odds_text(odds["Üst Element"])
+                        updated_alt = clean_odds_text(odds["Alt Element"])
+
+                        # **Eğer oranlar değiştiyse terminale yaz**
+                        if updated_ust != odds["Üst"] or updated_alt != odds["Alt"]:
+                            print(f"🔁 Güncellenen oran: {updated_ust} | {updated_alt}")
+
+                        odds["Üst"] = updated_ust
+                        odds["Alt"] = updated_alt
+
+                    except:
+                        continue
 
         return {"takim1": takim1, "takim2": takim2, "oranlar": match_odds}
 

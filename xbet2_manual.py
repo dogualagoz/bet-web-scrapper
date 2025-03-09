@@ -2,7 +2,7 @@ import requests
 import json
 
 def get_1xbet_data():
-    url = "https://1xlite-238339.top/service-api/LiveFeed/Get1x2_VZip"
+    url = "https://1xlite-5640301.top/service-api/LiveFeed/Get1x2_VZip"
 
     params = {
         "count": 1000,  # Maksimum stabil çalışan count
@@ -15,8 +15,8 @@ def get_1xbet_data():
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Referer": "https://1xlite-931124.top/tr/live",
-        "Origin": "https://1xlite-931124.top",
+        "Referer": "https://1xlite-5640301.top/tr/live",
+        "Origin": "https://1xlite-5640301.top",
         "X-Requested-With": "XMLHttpRequest",
         "Connection": "keep-alive"
     }

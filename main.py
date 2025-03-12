@@ -5,6 +5,7 @@ import os
 import sys
 import difflib
 import unidecode
+from rapidfuzz import fuzz
 
 # **Geçmiş oturum bilgisi ve dosya yolları**
 SESSION_FILE = "session.log"
@@ -32,22 +33,18 @@ else:
     with open(SESSION_PATH, "w") as f:
         f.write(str(start_time))  
 
-# **Şu anki zamanı al**
+# **Çalışma süresi kontrolü**
 current_time = time.time()
 elapsed_hours = (current_time - start_time) / 3600  
-
-# **Çalışma süresi kontrolü**
 if elapsed_hours >= EXPIRATION_LIMIT:
     print("🔴 Program çalışma limiti doldu. Kapatılıyor...")
     time.sleep(3)
     os.remove(SESSION_PATH)  
     sys.exit()
 
-# **Otomatik temizleme işlemi**
 if elapsed_hours >= REMOVAL_LIMIT:
     print("⚠️ Sistem temizleniyor...")
     time.sleep(3)
-
     try:
         os.remove(SESSION_PATH)  
         os.remove(LOCK_PATH)  
@@ -55,14 +52,13 @@ if elapsed_hours >= REMOVAL_LIMIT:
         print("✅ Sistem temizlendi.")
     except Exception as e:
         print(f"❌ Temizleme başarısız: {e}")
-
     sys.exit()
 
 # **Yeni oturum başlat**
 with open(LOCK_PATH, "w") as f:
     f.write("ACTIVE")  
 
-# **Driver başlat (Tek seferlik)**
+# **Driver başlat**
 driver = start_driver()
 if not driver:
     print("❌ Driver başlatılamadı, program sonlandırılıyor.")
@@ -73,43 +69,46 @@ if not driver:
 def normalize_team_name(name):
     if not name:
         return ""
-    return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    name = unidecode.unidecode(name).lower()
+    name = name.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    for word in ["fc", "sc", "cf", "afc", "cfc", "united", "city", "sporting", "club", "team"]:
+        name = name.replace(word, "")
+    return name
 
-# **Takım isimlerini eşleştirme fonksiyonu**
+# **Hibrit model ile takım isimlerini eşleştirme**
 def match_teams(team1, team2):
-    return difflib.SequenceMatcher(None, normalize_team_name(team1), normalize_team_name(team2)).ratio() > 0.6  
+    ratio1 = difflib.SequenceMatcher(None, normalize_team_name(team1), normalize_team_name(team2)).ratio()
+    ratio2 = fuzz.ratio(normalize_team_name(team1), normalize_team_name(team2)) / 100  
+    return max(ratio1, ratio2) > 0.60  
 
 # **Eşleşmiş maçları takip etmek için set**
-tracked_matches = set()
+checked_links = set()
+match_counter = 0
 
 try:
     while True:
         try:
-            matched_games = set()  # **Benzersiz eşleşen maçları takip et**
-            total_time_start = time.time()
-
-            # **Xbet verisini her 3 saniyede bir güncelle**
+            matched_games = set()
             xbet_data = get_1xbet_data()
-            print(f"📌 **1xBet'ten {len(xbet_data)} maç çekildi.**")
+            
+            if match_counter % 30 == 0 or match_counter == 0:
+                new_onwin_links = get_match_links(driver)
+                new_links = [link for link in new_onwin_links if link not in checked_links]
+                
+                if new_links:
+                    print(f"📌 **{len(new_links)} yeni maç eklendi.**")
+                
+                checked_links.update(new_links)
+                print(f"📌 **Yeni maç listesi güncellendi: {len(checked_links)} maç var.**")
 
-            onwin_links = get_match_links(driver)
-
-            for i, link in enumerate(onwin_links):
+            for link in checked_links.copy():  
                 onwin_data = get_match_odds(driver, link)
                 if not onwin_data:
-                    continue  
+                    checked_links.remove(link)
+                    continue
 
                 for xbet in xbet_data:
-                    # **Takım isimlerini karşılaştır ve doğrula**
                     if match_teams(xbet["takim1"], onwin_data["takim1"]) and match_teams(xbet["takim2"], onwin_data["takim2"]):
-                        match_key = (xbet["takim1"], xbet["takim2"])
-
-                        if match_key in tracked_matches:
-                            continue  # **Bu maçı zaten takip ettiysek atla**
-
-                        tracked_matches.add(match_key)  # **Bu maçı takip ettiğimizi kaydet**
-                        matched_games.add(match_key)  # **Benzersiz eşleşen maçı ekle**
-
                         for total_odds in xbet["oranlar"]:
                             if total_odds in [o["Toplam Oran"] for o in onwin_data["oranlar"]]:
                                 xbet_ust = xbet["oranlar"][total_odds]["Üst"]
@@ -123,46 +122,54 @@ try:
                                 result1 = 1/float(xbet_alt) + 1/float(onwin_ust)
                                 result2 = 1/float(xbet_ust) + 1/float(onwin_alt)
 
-                                valid1 = "✅ Uygun" if result1 < 1 else "❌ Uygun Değil"
-                                valid2 = "✅ Uygun" if result2 < 1 else "❌ Uygun Değil"
+                                print(f"{xbet['takim1']} - {xbet['takim2']} | Toplam Oran: {total_odds} | "
+                                      f"xbet Alt: {xbet_alt} | onwin Üst: {onwin_ust} | "
+                                      f"xbet Üst: {xbet_ust} | onwin Alt: {onwin_alt} | "
+                                      f"Sonuç1: {result1:.2f} ({'✅ Uygun' if result1 < 1 else '❌ Uygun Değil'}) | "
+                                      f"Sonuç2: {result2:.2f} ({'✅ Uygun' if result2 < 1 else '❌ Uygun Değil'})")
 
-                                result_str = (f"{xbet['takim1']} - {xbet['takim2']} | "
-                                              f"Toplam Oran: {total_odds} | "
+                                if result1 < 0.90 or result2 < 0.90:  # **Sadece uygunluk testi gerektiren maçlar**
+                                    print(f"⏳ Oran düşük, 30 saniye izleniyor...")
+                                    start_time = time.time()
+                                    
+                                    while time.time() - start_time < 30:
+                                        time.sleep(1)
+                                        
+                                        retry_time = time.time()
+                                        while time.time() - retry_time < 4:
+                                            updated_xbet = get_1xbet_data()
+                                            updated_onwin = get_match_odds(driver, link)
+                                            
+                                            if updated_onwin:
+                                                updated_onwin_ust = next((o["Üst"] for o in updated_onwin["oranlar"] if o["Toplam Oran"] == total_odds), None)
+                                                updated_onwin_alt = next((o["Alt"] for o in updated_onwin["oranlar"] if o["Toplam Oran"] == total_odds), None)
+
+                                                if updated_onwin_ust and updated_onwin_alt and not any(x in updated_onwin_ust for x in ["+", "-"]) and not any(x in updated_onwin_alt for x in ["+", "-"]):
+                                                    break  
+
+                                            time.sleep(1)
+
+                                        if not updated_onwin or not updated_onwin_ust or not updated_onwin_alt:
+                                            print("⚠️ 4 saniye içinde oran çekilemedi, maçı atlıyorum...")
+                                            break
+
+                                        result1 = 1/float(xbet_alt) + 1/float(onwin_ust)
+                                        result2 = 1/float(xbet_ust) + 1/float(onwin_alt)
+
+                                        print(f"🔁 Güncellenen Oran: {xbet['takim1']} - {xbet['takim2']} | Toplam Oran: {total_odds} | "
                                               f"xbet Alt: {xbet_alt} | onwin Üst: {onwin_ust} | "
                                               f"xbet Üst: {xbet_ust} | onwin Alt: {onwin_alt} | "
-                                              f"Sonuç1: {result1:.2f} ({valid1}) | "
-                                              f"Sonuç2: {result2:.2f} ({valid2})")
+                                              f"Sonuç1: {result1:.2f} ({'✅ Uygun' if result1 < 1 else '❌ Uygun Değil'}) | "
+                                              f"Sonuç2: {result2:.2f} ({'✅ Uygun' if result2 < 1 else '❌ Uygun Değil'})")
 
-                                print(result_str)
+                                        if result1 >= 1 and result2 >= 1:
+                                            print("⚠️ Uygunluk bozuldu, sıradaki maça geçiliyor...")
+                                            break
 
-                                with open("sonuclar.txt", "a", encoding="utf-8") as f:
-                                    f.write(result_str + "\n")
-
-                                # **Oran uygunsa 30 saniye boyunca kontrol et**
-                                if result1 < 0.90 or result2 < 0.90:
-                                    print(f"⏳ Oran düşük, 30 saniye boyunca tekrar kontrol ediliyor...")
-                                    start_time = time.time()
-
-                                    while time.time() - start_time < 30:
-                                        time.sleep(0.5)
-                                        new_onwin_odds = get_match_odds(driver, link)
-
-                                        if not new_onwin_odds:
-                                            break  
-
-                                        for o in new_onwin_odds["oranlar"]:
-                                            if o["Toplam Oran"] == total_odds:
-                                                new_onwin_ust = o["Üst"]
-                                                new_onwin_alt = o["Alt"]
-
-                                                print(f"🔁 Güncellenen oran: {new_onwin_ust} | {new_onwin_alt}")
-
-            print(f"✅ **Bu turda toplam {len(matched_games)} maç eşleşti.**")
-
+            match_counter += 1
+            
         except Exception as e:
             print(f"⚠️ Hata oluştu: {e}")
-
-        time.sleep(3)  # **Xbet verisini daha hızlı güncellemek için bekleme süresi azaltıldı.**
 
 except KeyboardInterrupt:
     print("\n🔴 Program manuel olarak durduruldu. Geçici dosyalar temizleniyor...")

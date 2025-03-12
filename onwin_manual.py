@@ -18,9 +18,9 @@ def start_driver():
         print("✅ ChromeDriver başarıyla başlatıldı.")
 
         # **Captcha için bekle (Sadece İlk Açılışta)**
-        driver.get("https://onwin1767.com/sportsbook/live")
+        driver.get("https://onwin1768.com/sportsbook/live")
         print("⚠️ Captcha'yı geçmek için 10 saniye bekleniyor...")
-        time.sleep(10)  
+        time.sleep(15)  
         print("✅ Captcha süresi sona erdi, devam ediliyor...")
 
         return driver

@@ -7,7 +7,7 @@ def normalize_team_name(name):
     return re.sub(r"\s|-|\(.*?\)", "", name)  
 
 def get_1xbet_data():
-    url = "https://1xlite-5640301.top/service-api/LiveFeed/Get1x2_VZip"
+    url = "https://1xlite-7133965.top/service-api/LiveFeed/Get1x2_VZip"
     params = {"count": 1000, "lng": "tr", "mode": 4, "country": 190, "noFilterBlockEvent": "true"}
 
     response = requests.get(url, params=params)
@@ -37,5 +37,14 @@ def get_1xbet_data():
         if any(v["Üst"] and v["Alt"] for v in oranlar.values()):
             matches.append({"takim1": takim1, "takim2": takim2, "oranlar": oranlar})
 
-    print(f"📌 **1xBet'ten {len(matches)} maç çekildi.**")
+    
     return matches
+
+
+a = get_1xbet_data()
+
+for i in a:
+    print(i)
+
+  
+

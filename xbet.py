@@ -1,17 +1,34 @@
 import requests
 import re
-import unidecode  
+import unidecode
 
 def normalize_team_name(name):
     name = unidecode.unidecode(name).lower()
-    return re.sub(r"\s|-|\(.*?\)", "", name)  
+    return re.sub(r"\s|-|\(.*?\)", "", name)
+
+def is_valid_goal_value(value):
+    try:
+        val = float(value)
+        return str(val).endswith(".5")
+    except:
+        return False
 
 def get_1xbet_data():
-    url = "https://1xlite-7133965.top/service-api/LiveFeed/Get1x2_VZip"
-    params = {"count": 1000, "lng": "tr", "mode": 4, "country": 190, "noFilterBlockEvent": "true"}
+    url = "https://1xlite-7196329.top/service-api/LiveFeed/Get1x2_VZip"
+    params = {
+        "count": 1000,
+        "lng": "tr",
+        "mode": 4,
+        "country": 190,
+        "noFilterBlockEvent": "true"
+    }
 
-    response = requests.get(url, params=params)
-    data = response.json()
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+    except Exception as e:
+        print(f"⚠️ API isteği başarısız: {e}")
+        return []
 
     matches = []
     for event in data.get("Value", []):
@@ -19,32 +36,48 @@ def get_1xbet_data():
         takim2 = normalize_team_name(event.get("O2", ""))
 
         oranlar = {}
+
         for ae in event.get('AE', []):
+            if ae.get("G") != 17:
+                continue
+
             for bet in ae.get('ME', []):
                 toplam_gol = bet.get("P")
                 oran_tipi = bet.get("T")
                 oran_degeri = bet.get("C")
+                ce = bet.get("CE", 0)
 
-                if toplam_gol is not None and oran_degeri is not None:
-                    toplam_gol = str(toplam_gol)
-                    if toplam_gol.endswith(".5"):
-                        oranlar.setdefault(toplam_gol, {"Üst": None, "Alt": None})
-                        if oran_tipi == 9:
-                            oranlar[toplam_gol]["Üst"] = oran_degeri
-                        elif oran_tipi == 10:
-                            oranlar[toplam_gol]["Alt"] = oran_degeri
+                if toplam_gol is None or oran_degeri is None:
+                    continue
 
-        if any(v["Üst"] and v["Alt"] for v in oranlar.values()):
-            matches.append({"takim1": takim1, "takim2": takim2, "oranlar": oranlar})
+                if ce != 0:
+                    continue  # Sadece ana market
 
-    
+                if not isinstance(toplam_gol, (int, float, str)):
+                    continue
+
+                toplam_gol = str(toplam_gol).strip()
+                if not is_valid_goal_value(toplam_gol):
+                    continue
+
+                oranlar.setdefault(toplam_gol, {"Üst": None, "Alt": None})
+
+                if oran_tipi == 9:
+                    oranlar[toplam_gol]["Üst"] = oran_degeri
+                elif oran_tipi == 10:
+                    oranlar[toplam_gol]["Alt"] = oran_degeri
+
+        # Sadece tam çift olanlar kalsın
+        oranlar = {
+            k: v for k, v in oranlar.items()
+            if v["Üst"] is not None and v["Alt"] is not None
+        }
+
+        if oranlar:
+            matches.append({
+                "takim1": takim1,
+                "takim2": takim2,
+                "oranlar": oranlar
+            })
+
     return matches
-
-
-a = get_1xbet_data()
-
-for i in a:
-    print(i)
-
-  
-

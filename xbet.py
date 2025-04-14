@@ -14,7 +14,7 @@ def is_valid_goal_value(value):
         return False
 
 def get_1xbet_data():
-    url = "https://1xlite-7196329.top/service-api/LiveFeed/Get1x2_VZip"
+    url = "https://1xlite-4937855.top/service-api/LiveFeed/Get1x2_VZip"
     params = {
         "count": 1000,
         "lng": "tr",

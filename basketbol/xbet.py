@@ -10,7 +10,7 @@ def normalize_team_name(name):
     return name.strip()
 
 def get_basketball_data():
-    url = "https://1xlite-7196329.top/service-api/LiveFeed/Get1x2_VZip"
+    url = "https://1xlite-4937855.top/service-api/LiveFeed/Get1x2_VZip"
     params = {"count": 1000, "lng": "tr", "mode": 4, "country": 190, "noFilterBlockEvent": "true"}
 
     try:

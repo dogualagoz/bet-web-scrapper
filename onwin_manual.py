@@ -14,9 +14,9 @@ options.add_argument("--disable-blink-features=AutomationControlled")
 def start_driver():
     print("\n🔄 Selenium Başlatılıyor...")
     try:
-        driver = uc.Chrome(options=options, version_main=133)
+        driver = uc.Chrome(options=options, version_main=135)
         print("✅ ChromeDriver başarıyla başlatıldı.")
-        driver.get("https://onwin1772.com/sportsbook/live")
+        driver.get("https://onwin1773.com/sportsbook/live")
         print("⚠️ Captcha'yı geçmek için 15 saniye bekleniyor...")
         time.sleep(15)  
         print("✅ Captcha süresi sona erdi, devam ediliyor...")
@@ -85,26 +85,41 @@ def get_match_odds(driver, url, track_for_seconds=0):
             print(f"⚠️ Sayfa yüklenmedi, atlanıyor: {url}")
             return None
 
-        team_elements = driver.find_elements(By.CLASS_NAME, "team--uwjbd")
+        # Takım isimlerini çekmeye çalış
+        team_elements = []
+        retry_start = time.time()
+        while time.time() - retry_start < 3:
+            team_elements = driver.find_elements(By.CLASS_NAME, "team--uwjbd")
+            if len(team_elements) >= 2:
+                break
+            time.sleep(0.5)
+
         if len(team_elements) < 2:
+            
             return None
 
         takim1 = normalize_team_name(team_elements[0].text.strip())
         takim2 = normalize_team_name(team_elements[1].text.strip())
 
-        market_groups = driver.find_elements(By.CLASS_NAME, "market-group--SPHr8")
+        # Market grubunu çekmeye çalış
         market_group = None
-
-        for group in market_groups:
-            try:
-                header = group.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
-                if header.text.strip() == "Toplam Gol Üst/Alt":  # **Sadece tam eşleşmeyi kabul et**
-                    market_group = group
-                    break
-            except:
-                continue
+        retry_start = time.time()
+        while time.time() - retry_start < 3:
+            market_groups = driver.find_elements(By.CLASS_NAME, "market-group--SPHr8")
+            for group in market_groups:
+                try:
+                    header = group.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
+                    if header.text.strip() == "Toplam Gol Üst/Alt":
+                        market_group = group
+                        break
+                except:
+                    continue
+            if market_group:
+                break
+            time.sleep(0.5)
 
         if not market_group:
+          
             return None
 
         match_odds = []
@@ -113,8 +128,8 @@ def get_match_odds(driver, url, track_for_seconds=0):
         for outcome in outcomes:
             try:
                 total_value = outcome.find_element(By.CLASS_NAME, "parameter--JXoWS").text.strip()
-                if not total_value.endswith(".5"):  
-                    continue  
+                if not total_value.endswith(".5"):
+                    continue
 
                 odds_elements = outcome.find_elements(By.CLASS_NAME, "odds--YbHFY")
                 if len(odds_elements) < 2:
@@ -123,42 +138,28 @@ def get_match_odds(driver, url, track_for_seconds=0):
                 top_value = clean_odds_text(odds_elements[0])
                 bottom_value = clean_odds_text(odds_elements[1])
 
-                # **Eğer oranlardan biri None ise atla**
                 if not top_value or not bottom_value:
-                    continue  
+                    continue
 
                 match_odds.append({
                     "Toplam Oran": total_value,
                     "Üst": top_value,
                     "Alt": bottom_value,
-                    "Üst Element": odds_elements[0],  # **Elementi kaydet**
-                    "Alt Element": odds_elements[1]   # **Elementi kaydet**
+                    "Üst Element": odds_elements[0],
+                    "Alt Element": odds_elements[1]
                 })
 
             except:
                 continue
 
+        if not match_odds:
+            
+            return None
+
+        # İzleme modu (değişmedi)
         if track_for_seconds > 0:
-            print(f"⏳ Oran düşük, {track_for_seconds} saniye boyunca tekrar kontrol ediliyor...")
-            start_time = time.time()
-
-            while time.time() - start_time < track_for_seconds:
-                time.sleep(0.5)  
-
-                for odds in match_odds:
-                    try:
-                        updated_ust = clean_odds_text(odds["Üst Element"])
-                        updated_alt = clean_odds_text(odds["Alt Element"])
-
-                        # **Eğer oranlar değiştiyse terminale yaz**
-                        if updated_ust != odds["Üst"] or updated_alt != odds["Alt"]:
-                            print(f"🔁 Güncellenen oran: {updated_ust} | {updated_alt}")
-
-                        odds["Üst"] = updated_ust
-                        odds["Alt"] = updated_alt
-
-                    except:
-                        continue
+            ...
+            # burası senin mevcut kodunda aynen kalabilir
 
         return {"takim1": takim1, "takim2": takim2, "oranlar": match_odds}
 

@@ -4,31 +4,42 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import unidecode
-import re
 
 options = uc.ChromeOptions()
-options.headless = False  
+options.headless = False
 options.add_argument("--disable-blink-features=AutomationControlled")
 
 def start_driver():
     print("\n🔄 Selenium Başlatılıyor...")
     try:
-        driver = uc.Chrome(options=options, version_main=133)
+        driver = uc.Chrome(options=options, version_main=135)
         print("✅ ChromeDriver başarıyla başlatıldı.")
-        driver.get("https://onwin1772.com/sportsbook/live")
-        print("⚠️ Captcha'yı geçmek için 15 saniye bekleniyor...")
+        driver.get("https://onwin1774.com/sportsbook/live")
+        print("⚠️ Captcha geçişi için 15 saniye bekleniyor...")
         time.sleep(15)
-        print("✅ Captcha süresi sona erdi, devam ediliyor...")
+        print("✅ Captcha süresi sona erdi.")
         return driver
     except Exception as e:
         print(f"❌ Selenium başlatma hatası: {e}")
         return None
 
+def restart_driver():
+    global driver, checked_links, match_counter
+    print("♻️ Sistem sıfırlanıyor...")
+    try:
+        driver.quit()
+    except:
+        pass
+    driver = start_driver()
+    checked_links = set()
+    match_counter = 0
+    if not driver:
+        print("❌ Yeni driver başlatılamadı.")
+        sys.exit()
+    return driver
+
 def normalize_team_name(name):
-    if not name:
-        return ""
-    name = unidecode.unidecode(name).lower()
-    return unidecode.unidecode(name).lower().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    return unidecode.unidecode(name or "").lower().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
 
 def get_match_links(driver):
     wait = WebDriverWait(driver, 5)
@@ -38,7 +49,6 @@ def get_match_links(driver):
         ligler = wait.until(EC.presence_of_all_elements_located(
             (By.XPATH, "//*[@id='sportsbook-center-scroll']/div/div/div[1]/div/div[2]/div[3]")
         ))
-
         for lig in ligler:
             maclar = lig.find_elements(By.XPATH, ".//a[contains(@class, 'sb__reset_link')]")
             for mac in maclar:
@@ -49,15 +59,14 @@ def get_match_links(driver):
                         durum = "Devre Arası"
                 except:
                     pass
-
-                link = mac.get_attribute("href")
-                if link:
-                    match_links.append((link, durum))
-
+                if durum == "Devre Arası":
+                    link = mac.get_attribute("href")
+                    if link:
+                        match_links.append(link)
     except Exception as e:
-        print(f"❌ Hata oluştu: {e}")
+        print(f"❌ Link çekme hatası: {e}")
 
-    print(f"📌 **Toplam {len(match_links)} basketbol maçı bulundu**")
+    print(f"📌 {len(match_links)} devre arası basketbol maçı bulundu.")
     return match_links
 
 def wait_for_page_load(driver, timeout=5):
@@ -85,21 +94,17 @@ def get_team_names(driver):
 def clean_odds_text(element):
     text = element.text.strip()
     parts = text.split("\n")
-    if len(parts) < 2:
-        return None
-    return parts[-1]
+    return parts[-1] if len(parts) >= 2 else None
 
 def get_match_odds(driver, url):
     try:
-        print(f"🔍 Maç işleniyor: {url}")
         driver.get(url)
-
-        if not wait_for_page_load(driver, timeout=5):
-            print(f"⚠️ Sayfa yüklenmedi, atlanıyor: {url}")
+        if not wait_for_page_load(driver):
+            print(f"⚠️ Sayfa yüklenmedi, geçiliyor: {url}")
             return None
 
-        takim1, takim2 = get_team_names(driver)
-        if not takim1 or not takim2:
+        t1, t2 = get_team_names(driver)
+        if not t1 or not t2:
             return None
 
         market_groups = driver.find_elements(By.CLASS_NAME, "market-group--SPHr8")
@@ -110,7 +115,6 @@ def get_match_odds(driver, url):
                 header = group.find_element(By.CLASS_NAME, "ellipsis--_aRxs")
                 if "Toplam Sayı Üst/ Alt" != header.text.strip():
                     continue
-
                 outcomes = group.find_elements(By.CLASS_NAME, "outcomes--HBEPX")
                 for outcome in outcomes:
                     try:
@@ -133,8 +137,7 @@ def get_match_odds(driver, url):
             except:
                 continue
 
-        return {"takim1": takim1, "takim2": takim2, "oranlar": match_odds}
-
+        return {"takim1": t1, "takim2": t2, "oranlar": match_odds}
     except Exception as e:
         print(f"⚠️ Hata oluştu (Oran Çekme): {e}")
         return None

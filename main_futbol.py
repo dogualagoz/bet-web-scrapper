@@ -1,4 +1,4 @@
-from onwin_manual import get_match_odds, get_match_links, start_driver
+from onwin_manual import get_match_odds, get_match_links, start_driver, restart_driver
 from xbet import get_1xbet_data
 import time
 import os
@@ -6,7 +6,7 @@ import sys
 import difflib
 import unidecode
 from rapidfuzz import fuzz
-import re 
+import re
 
 SESSION_FILE = "session.log"
 LOCK_FILE = ".cache.lock"
@@ -94,14 +94,21 @@ match_counter = 0
 try:
     while True:
         try:
+            if match_counter > 0 and match_counter % 50 == 0:
+                print("♻️ 50 maç kontrol edildi. Driver yeniden başlatılıyor...")
+                driver.quit()
+                driver = restart_driver()
+                checked_links.clear()
+                print("✅ Driver sıfırlandı, linkler temizlendi.")
+
             if match_counter % 5 == 0 or match_counter == 0:
                 try:
                     new_onwin_links = get_match_links(driver)
                     new_links = [link for link in new_onwin_links if link not in checked_links]
                     if new_links:
-                        print(f"📌 **{len(new_links)} yeni maç eklendi.**")
+                        print(f"📌 {len(new_links)} yeni maç eklendi.")
                     checked_links.update(new_links)
-                    print(f"📌 **Yeni maç listesi güncellendi: {len(checked_links)} maç var.**")
+                    print(f"📌 Toplam {len(checked_links)} maç işlenecek.")
                 except Exception as e:
                     print(f"⚠️ Link listesi alınamadı: {e}")
                     time.sleep(2)
@@ -116,17 +123,15 @@ try:
                 try:
                     onwin_data = get_match_odds(driver, link)
                     if not onwin_data or not onwin_data.get("oranlar"):
-                     
                         continue
 
                     xbet_data = get_1xbet_data()
                     if not xbet_data:
-                        print(f"⚠️ Xbet verisi alınamadı.")
+                        print("⚠️ Xbet verisi alınamadı.")
                         continue
 
                     matched_xbet = find_best_match(onwin_data["takim1"], onwin_data["takim2"], xbet_data)
                     if not matched_xbet:
-                       
                         continue
 
                     for total_odds in matched_xbet["oranlar"]:
@@ -152,7 +157,7 @@ try:
                                   f"Sonuç2: {result2:.2f} ({'✅' if result2 < 1 else '❌'})")
 
                             if result1 < 0.98 or result2 < 0.98:
-                                print(f"⏳ Oran düşük, 30 saniye izleniyor...")
+                                print("⏳ Oran düşük, 30 saniye izleniyor...")
                                 watch_start = time.time()
                                 while time.time() - watch_start < 30:
                                     try:

@@ -7,7 +7,7 @@ api_url = "https://1xlite-7209679.top/service-api/LiveFeed/Get1x2_VZip"
 # API'nin boş veri dönmesini engellemek için bazı parametreler ekliyoruz.
 params = {"count": 1000, "lng": "tr", "mode": 4, "country": 190, "noFilterBlockEvent": "true"}
 
-
+asd = 123
 try:
     # API'ye GET isteği gönder
     response = requests.get(api_url, params=params)

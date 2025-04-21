@@ -16,7 +16,7 @@ def start_driver():
     try:
         driver = uc.Chrome(options=options, version_main=135)
         print("✅ ChromeDriver başarıyla başlatıldı.")
-        driver.get("https://onwin1773.com/sportsbook/live")
+        driver.get("https://onwin1774.com/sportsbook/live")
         print("⚠️ Captcha'yı geçmek için 15 saniye bekleniyor...")
         time.sleep(15)  
         print("✅ Captcha süresi sona erdi, devam ediliyor...")
@@ -26,6 +26,25 @@ def start_driver():
         return None
 
 # **Takım isimlerini normalize et**
+
+def restart_driver():
+    global driver, checked_links, match_counter
+    print("♻️ Sistem sıfırlanıyor...")
+
+    try:
+        driver.quit()
+    except:
+        pass
+
+    driver = start_driver()
+    checked_links = set()
+    match_counter = 0
+
+    if not driver:
+        print("❌ Yeni driver başlatılamadı.")
+        sys.exit()
+
+        
 def normalize_team_name(name):
     if not name:
         return ""
